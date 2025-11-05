@@ -4,22 +4,7 @@ import ConfirmModal from './ConfirmModal'
 import ProgressModal from './ProgressModal'
 import { SpotlightCard } from './ui/SpotlightCard'
 import { cn } from '../lib/utils'
-
-interface Repository {
-  name: string
-  full_name: string
-  private: boolean
-  updated_at: string
-  owner: string
-  description: string | null
-  html_url: string
-}
-
-interface DeleteResult {
-  repo: string
-  success: boolean
-  error?: string
-}
+import type { Repository, ActionResult, BulkAction } from '../../types'
 
 interface DashboardProps {
   jwt: string
@@ -36,8 +21,9 @@ export default function Dashboard({ jwt, onLogout }: DashboardProps) {
   const [filterPrivate, setFilterPrivate] = useState<'all' | 'public' | 'private'>('all')
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [showProgressModal, setShowProgressModal] = useState(false)
-  const [deleteResults, setDeleteResults] = useState<DeleteResult[]>([])
+  const [actionResults, setActionResults] = useState<ActionResult[]>([])
   const [isDryRun, setIsDryRun] = useState(false)
+  const [actionType, setActionType] = useState<BulkAction>('delete')
 
   useEffect(() => {
     fetchRepos()
@@ -111,12 +97,12 @@ export default function Dashboard({ jwt, onLogout }: DashboardProps) {
     setSelected(newSelected)
   }
 
-  const handleDelete = async () => {
+  const handleBulkAction = async () => {
     try {
       setShowProgressModal(true)
-      setDeleteResults([])
+      setActionResults([])
 
-      const response = await fetch('/api/delete', {
+      const response = await fetch(actionType === 'delete' ? '/api/delete' : '/api/archive', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${jwt}`,
@@ -124,26 +110,34 @@ export default function Dashboard({ jwt, onLogout }: DashboardProps) {
         },
         body: JSON.stringify({
           repos: Array.from(selected),
-          dryRun: isDryRun,
+          ...(actionType === 'delete' ? { dryRun: isDryRun } : {}),
         }),
       })
 
       if (!response.ok) {
-        throw new Error('Failed to delete repositories')
+        throw new Error(`Failed to ${actionType === 'delete' ? 'delete' : 'archive'} repositories`)
       }
 
-      const data = await response.json() as { results: DeleteResult[]; summary: { total: number; succeeded: number; failed: number } }
-      setDeleteResults(data.results)
+      const data = await response.json() as { results: ActionResult[]; summary: { total: number; succeeded: number; failed: number } }
+      setActionResults(data.results)
 
-      if (!isDryRun) {
-        // Remove deleted repos from list
+      if (actionType === 'delete' && !isDryRun) {
         const deletedRepos = new Set(
-          data.results.filter((r: DeleteResult) => r.success).map((r: DeleteResult) => r.repo)
+          data.results.filter((r) => r.success).map((r) => r.repo)
         )
         setRepos((prev) => prev.filter((r) => !deletedRepos.has(r.full_name)))
         setSelected(new Set())
       }
+
+      if (actionType === 'archive') {
+        const archivedRepos = new Set(
+          data.results.filter((r) => r.success).map((r) => r.repo)
+        )
+        setRepos((prev) => prev.filter((r) => !archivedRepos.has(r.full_name)))
+        setSelected(new Set())
+      }
     } catch (err) {
+      setShowProgressModal(false)
       setError((err as Error).message)
     }
   }
@@ -240,22 +234,41 @@ export default function Dashboard({ jwt, onLogout }: DashboardProps) {
           >
             <SpotlightCard className="mb-6 border-orange-500/30">
               <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <label className="flex items-center gap-2 text-sm text-zinc-300">
-                    <input
-                      type="checkbox"
-                      checked={isDryRun}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setIsDryRun(e.target.checked)}
-                      className="rounded border-zinc-600 text-orange-600 focus:ring-orange-500"
-                    />
-                    Dry run (don't actually delete)
-                  </label>
+                <div className="flex items-center gap-4 w-full">
+                  <select
+                    value={actionType}
+                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                      const value = e.target.value as BulkAction
+                      setActionType(value)
+                      if (value === 'archive') {
+                        setIsDryRun(false)
+                      }
+                    }}
+                    className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-orange-500 transition-colors"
+                  >
+                    <option value="delete">Delete repositories</option>
+                    <option value="archive">Archive repositories</option>
+                  </select>
+
+                  {actionType === 'delete' && (
+                    <label className="flex items-center gap-2 text-sm text-zinc-300 whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={isDryRun}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setIsDryRun(e.target.checked)}
+                        className="rounded border-zinc-600 text-orange-600 focus:ring-orange-500"
+                      />
+                      Dry run
+                    </label>
+                  )}
                 </div>
                 <button
                   onClick={() => setShowConfirmModal(true)}
-                  className="btn-danger"
+                  className={actionType === 'delete' && !isDryRun ? 'btn-danger' : 'btn-primary'}
                 >
-                  {isDryRun ? 'Preview' : 'Delete'} {selected.size} repo{selected.size !== 1 ? 's' : ''}
+                  {actionType === 'delete'
+                    ? `${isDryRun ? 'Preview' : 'Delete'} ${selected.size} repo${selected.size !== 1 ? 's' : ''}`
+                    : `Archive ${selected.size} repo${selected.size !== 1 ? 's' : ''}`}
                 </button>
               </div>
             </SpotlightCard>
@@ -363,10 +376,11 @@ export default function Dashboard({ jwt, onLogout }: DashboardProps) {
       {showConfirmModal && (
         <ConfirmModal
           count={selected.size}
+          action={actionType}
           isDryRun={isDryRun}
           onConfirm={() => {
             setShowConfirmModal(false)
-            handleDelete()
+            handleBulkAction()
           }}
           onCancel={() => setShowConfirmModal(false)}
         />
@@ -374,7 +388,8 @@ export default function Dashboard({ jwt, onLogout }: DashboardProps) {
 
       {showProgressModal && (
         <ProgressModal
-          results={deleteResults}
+          action={actionType}
+          results={actionResults}
           isDryRun={isDryRun}
           onClose={() => setShowProgressModal(false)}
         />

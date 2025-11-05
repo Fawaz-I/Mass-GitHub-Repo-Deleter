@@ -14,10 +14,13 @@ export interface Repository {
   owner: string
   description: string | null
   html_url: string
+  archived?: boolean
 }
 
-export interface DeleteResult {
+export interface ActionResult {
   repo: string
   success: boolean
   error?: string
 }
+
+export type BulkAction = 'delete' | 'archive'

@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import type { Context, Next } from 'hono'
 import { jwtVerify } from 'jose'
 import { Octokit } from '@octokit/rest'
-import type { Env, Repository, DeleteResult } from '../types'
+import type { Env, Repository, ActionResult } from '../types'
 
 type AppEnv = { Bindings: Env; Variables: { githubToken: string } }
 
@@ -65,6 +65,7 @@ apiRoutes.get('/repos', verifyJWT, async (c) => {
           owner: r.owner.login,
           description: r.description,
           html_url: r.html_url,
+          archived: r.archived,
         }))
       )
 
@@ -91,7 +92,7 @@ apiRoutes.post('/delete', verifyJWT, async (c) => {
     }
 
     const octokit = new Octokit({ auth: token })
-    const results: DeleteResult[] = []
+    const results: ActionResult[] = []
 
     // Process deletions sequentially to avoid rate limits
     for (const repoFullName of repos) {
@@ -136,5 +137,61 @@ apiRoutes.post('/delete', verifyJWT, async (c) => {
   } catch (error) {
     console.error('Delete repos error:', error)
     return c.json({ error: 'Failed to delete repositories', message: (error as Error).message }, 500)
+  }
+})
+
+// Archive multiple repositories
+apiRoutes.post('/archive', verifyJWT, async (c) => {
+  try {
+    const token = c.get('githubToken')
+    const body = await c.req.json()
+    const { repos } = body as { repos: string[] }
+
+    if (!Array.isArray(repos) || repos.length === 0) {
+      return c.json({ error: 'Invalid request: repos must be a non-empty array' }, 400)
+    }
+
+    const octokit = new Octokit({ auth: token })
+    const results: ActionResult[] = []
+
+    for (const repoFullName of repos) {
+      try {
+        const [owner, repo] = repoFullName.split('/')
+
+        if (!owner || !repo) {
+          results.push({
+            repo: repoFullName,
+            success: false,
+            error: 'Invalid repository format (expected owner/repo)',
+          })
+          continue
+        }
+
+        await octokit.repos.update({ owner, repo, archived: true })
+
+        results.push({
+          repo: repoFullName,
+          success: true,
+        })
+      } catch (error: any) {
+        results.push({
+          repo: repoFullName,
+          success: false,
+          error: error.message || 'Unknown error',
+        })
+      }
+    }
+
+    return c.json({
+      results,
+      summary: {
+        total: repos.length,
+        succeeded: results.filter((r) => r.success).length,
+        failed: results.filter((r) => !r.success).length,
+      },
+    })
+  } catch (error) {
+    console.error('Archive repos error:', error)
+    return c.json({ error: 'Failed to archive repositories', message: (error as Error).message }, 500)
   }
 })
