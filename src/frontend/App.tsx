@@ -3,25 +3,40 @@ import LoginPage from './components/LoginPage'
 import Dashboard from './components/Dashboard'
 
 function App() {
-  const [jwt, setJwt] = useState<string | null>(null)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Check for JWT in URL params
-    const params = new URLSearchParams(window.location.search)
-    const authToken = params.get('auth')
+    const checkSession = async () => {
+      try {
+        const response = await fetch('/api/session', {
+          credentials: 'include',
+        })
 
-    if (authToken) {
-      setJwt(authToken)
-      // Clean URL
-      window.history.replaceState({}, '', '/')
+        if (response.ok) {
+          setIsAuthenticated(true)
+        } else {
+          setIsAuthenticated(false)
+        }
+      } catch (error) {
+        console.error('Session check failed', error)
+        setIsAuthenticated(false)
+      } finally {
+        setLoading(false)
+      }
     }
 
-    setLoading(false)
+    void checkSession()
   }, [])
 
-  const handleLogout = () => {
-    setJwt(null)
+  const handleLogout = async () => {
+    try {
+      await fetch('/auth/logout', { credentials: 'include' })
+    } catch (error) {
+      console.error('Logout failed', error)
+    } finally {
+      setIsAuthenticated(false)
+    }
   }
 
   if (loading) {
@@ -32,7 +47,7 @@ function App() {
     )
   }
 
-  return jwt ? <Dashboard jwt={jwt} onLogout={handleLogout} /> : <LoginPage />
+  return isAuthenticated ? <Dashboard onLogout={handleLogout} /> : <LoginPage />
 }
 
 export default App
