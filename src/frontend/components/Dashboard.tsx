@@ -7,11 +7,10 @@ import { cn } from '../lib/utils'
 import type { Repository, ActionResult, BulkAction } from '../../types'
 
 interface DashboardProps {
-  jwt: string
   onLogout: () => void
 }
 
-export default function Dashboard({ jwt, onLogout }: DashboardProps) {
+export default function Dashboard({ onLogout }: DashboardProps) {
   const isDev = import.meta.env.DEV
   const [repos, setRepos] = useState<Repository[]>([])
   const [filteredRepos, setFilteredRepos] = useState<Repository[]>([])
@@ -28,7 +27,7 @@ export default function Dashboard({ jwt, onLogout }: DashboardProps) {
 
   useEffect(() => {
     fetchRepos()
-  }, [jwt])
+  }, [])
 
   useEffect(() => {
     let filtered = repos
@@ -58,10 +57,12 @@ export default function Dashboard({ jwt, onLogout }: DashboardProps) {
       setError(null)
 
       const response = await fetch('/api/repos', {
-        headers: {
-          Authorization: `Bearer ${jwt}`,
-        },
+        credentials: 'include',
       })
+
+      if (response.status === 401) {
+        throw new Error('Authentication required')
+      }
 
       if (!response.ok) {
         const errorData = await response.json() as { error?: string }
@@ -71,8 +72,10 @@ export default function Dashboard({ jwt, onLogout }: DashboardProps) {
       const data = await response.json() as Repository[]
       setRepos(data)
     } catch (err) {
-      setError((err as Error).message)
-      if ((err as Error).message.includes('token')) {
+      const message = (err as Error).message
+      setError(message)
+
+      if (message === 'Authentication required') {
         setTimeout(onLogout, 2000)
       }
     } finally {
@@ -106,14 +109,18 @@ export default function Dashboard({ jwt, onLogout }: DashboardProps) {
       const response = await fetch(actionType === 'delete' ? '/api/delete' : '/api/archive', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${jwt}`,
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           repos: Array.from(selected),
           ...(actionType === 'delete' ? { dryRun: isDryRun } : {}),
         }),
       })
+
+      if (response.status === 401) {
+        throw new Error('Authentication required')
+      }
 
       if (!response.ok) {
         throw new Error(`Failed to ${actionType === 'delete' ? 'delete' : 'archive'} repositories`)
@@ -139,7 +146,12 @@ export default function Dashboard({ jwt, onLogout }: DashboardProps) {
       }
     } catch (err) {
       setShowProgressModal(false)
-      setError((err as Error).message)
+      const message = (err as Error).message
+      setError(message)
+
+      if (message === 'Authentication required') {
+        setTimeout(onLogout, 2000)
+      }
     }
   }
 
