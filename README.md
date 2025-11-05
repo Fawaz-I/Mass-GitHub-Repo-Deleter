@@ -69,6 +69,8 @@ JWT_SECRET=your_super_secret_jwt_signing_key_min_32_chars
 REDIRECT_URI=http://localhost:8787/auth/callback
 ```
 
+While you're in development, set your GitHub OAuth App's **Homepage URL** to `http://localhost:8787` so the "Sign in with GitHub" button sends users back to the locally running Worker + frontend bundle.
+
 ### 4. Start Development Server
 
 The dev server builds the frontend and starts Wrangler:
@@ -108,6 +110,11 @@ For `REDIRECT_URI`, use your production URL:
 ```
 https://your-worker.your-subdomain.workers.dev/auth/callback
 ```
+
+Once the Worker is live, update the GitHub OAuth App to use the production URLs as well:
+
+- **Homepage URL:** `https://your-worker.your-subdomain.workers.dev/`
+- **Authorization callback URL:** `https://your-worker.your-subdomain.workers.dev/auth/callback`
 
 ### 3. Deploy
 
