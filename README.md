@@ -1,13 +1,11 @@
 # 🗑️ Mass GitHub Repo Deleter
 
-A secure, browser-accessible tool for bulk deleting GitHub repositories using OAuth authentication. Built with Cloudflare Workers, Hono, and React.
-
-> **🚀 Ready to start?** See [GET_STARTED.md](./GET_STARTED.md) for a 3-step quick start!
+A secure, browser-accessible tool for bulk deleting or archiving GitHub repositories using OAuth authentication. Built with Cloudflare Workers, Hono, and React.
 
 ## ⚡ Features
 
 - 🔐 **Secure OAuth Authentication** - GitHub OAuth App integration
-- 🎯 **Bulk Operations** - Delete multiple repositories at once
+- 🎯 **Bulk Operations** - Delete or archive multiple repositories at once
 - 🔍 **Smart Filtering** - Search and filter by visibility (public/private)
 - 🧪 **Dry Run Mode** - Preview deletions before executing
 - ⚡ **Edge Deployed** - Lightning-fast performance via Cloudflare Workers
@@ -26,11 +24,8 @@ A secure, browser-accessible tool for bulk deleting GitHub repositories using OA
 
 1. **Node.js**: Version 18+ recommended
 2. **GitHub OAuth App**: Create one at [GitHub Developer Settings](https://github.com/settings/developers)
-   - See [QUICKSTART.md](./QUICKSTART.md) for step-by-step instructions
    - Required scopes: `repo`, `delete_repo`
 3. **Cloudflare Account**: Only needed for production deployment
-
-**New to this project?** → Start with [QUICKSTART.md](./QUICKSTART.md) ⚡
 
 ## 🚀 Local Development
 
@@ -128,10 +123,11 @@ Update your GitHub OAuth App's callback URL to match your production URL.
 
 1. **Sign In**: Click "Sign in with GitHub" to authenticate
 2. **Browse Repos**: View all your repositories with search and filters
-3. **Select Repos**: Check the boxes for repositories you want to delete
-4. **Dry Run** (Optional): Enable dry run mode to preview without deleting
-5. **Delete**: Click the delete button and confirm by typing "DELETE"
-6. **Review Results**: See which deletions succeeded or failed
+3. **Select Repos**: Check the boxes for repositories you want to act on
+4. **Choose Action**: Pick between deleting or archiving the selected repositories
+5. **Dry Run** (Optional): For deletions, enable dry run mode to preview without deleting
+6. **Confirm**: Follow the confirmation prompt (type "DELETE" or "ARCHIVE" as required)
+7. **Review Results**: See which operations succeeded or failed
 
 ## 🔒 Security Features
 
@@ -152,7 +148,8 @@ Update your GitHub OAuth App's callback URL to match your production URL.
 ### API
 
 - `GET /api/repos` - Fetch all repositories for authenticated user
-- `POST /api/delete` - Delete multiple repositories
+- `POST /api/delete` - Delete multiple repositories (supports `dryRun`)
+- `POST /api/archive` - Archive multiple repositories
 
 **Delete Request Body:**
 ```json
@@ -169,6 +166,28 @@ Update your GitHub OAuth App's callback URL to match your production URL.
   "results": [
     { "repo": "owner/repo1", "success": true },
     { "repo": "owner/repo2", "success": false, "error": "Not found" }
+  ],
+  "summary": {
+    "total": 2,
+    "succeeded": 1,
+    "failed": 1
+  }
+}
+```
+
+**Archive Request Body:**
+```json
+{
+  "repos": ["owner/repo1", "owner/repo2"]
+}
+```
+
+**Archive Response:**
+```json
+{
+  "results": [
+    { "repo": "owner/repo1", "success": true },
+    { "repo": "owner/repo2", "success": false, "error": "Already archived" }
   ],
   "summary": {
     "total": 2,

@@ -1,22 +1,30 @@
 import { motion } from 'framer-motion'
 import { SpotlightCard } from './ui/SpotlightCard'
-
-interface DeleteResult {
-  repo: string
-  success: boolean
-  error?: string
-}
+import type { ActionResult, BulkAction } from '../../types'
 
 interface ProgressModalProps {
-  results: DeleteResult[]
+  action: BulkAction
+  results: ActionResult[]
   isDryRun: boolean
   onClose: () => void
 }
 
-export default function ProgressModal({ results, isDryRun, onClose }: ProgressModalProps) {
+export default function ProgressModal({ action, results, isDryRun, onClose }: ProgressModalProps) {
   const hasResults = results.length > 0
   const succeeded = results.filter((r) => r.success).length
   const failed = results.filter((r) => !r.success).length
+  const isDeleteAction = action === 'delete'
+  const title = isDeleteAction
+    ? isDryRun
+      ? 'Dry Run Results'
+      : 'Deletion Results'
+    : 'Archiving Results'
+  const progressMessage = isDeleteAction
+    ? isDryRun
+      ? 'Checking repositories...'
+      : 'Deleting repositories...'
+    : 'Archiving repositories...'
+  const buttonLabel = isDeleteAction && !isDryRun ? 'Close' : 'Done'
 
   return (
     <motion.div
@@ -32,9 +40,7 @@ export default function ProgressModal({ results, isDryRun, onClose }: ProgressMo
       >
         <SpotlightCard className="flex flex-col max-h-[80vh] backdrop-blur-sm bg-zinc-950/90 p-0">
           <div className="p-6 border-b border-zinc-800">
-            <h2 className="text-2xl font-bold bg-gradient-to-r from-orange-400 to-red-400 bg-clip-text text-transparent">
-              {isDryRun ? 'Dry Run Results' : 'Deletion Results'}
-            </h2>
+            <h2 className="text-2xl font-bold bg-gradient-to-r from-orange-400 to-red-400 bg-clip-text text-transparent">{title}</h2>
             {hasResults && (
               <p className="text-zinc-400 mt-2">
                 {succeeded} succeeded · {failed} failed
@@ -46,9 +52,7 @@ export default function ProgressModal({ results, isDryRun, onClose }: ProgressMo
             {!hasResults ? (
               <div className="text-center py-12">
                 <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-t-2 border-orange-500 mx-auto mb-4"></div>
-                <p className="text-zinc-400 text-lg">
-                  {isDryRun ? 'Checking repositories...' : 'Deleting repositories...'}
-                </p>
+                <p className="text-zinc-400 text-lg">{progressMessage}</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -110,7 +114,7 @@ export default function ProgressModal({ results, isDryRun, onClose }: ProgressMo
           {hasResults && (
             <div className="p-6 border-t border-zinc-800">
               <button onClick={onClose} className="w-full btn-primary">
-                Close
+                {buttonLabel}
               </button>
             </div>
           )}

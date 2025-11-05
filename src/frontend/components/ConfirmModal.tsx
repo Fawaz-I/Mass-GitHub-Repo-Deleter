@@ -1,18 +1,37 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { SpotlightCard } from './ui/SpotlightCard'
+import type { BulkAction } from '../../types'
 
 interface ConfirmModalProps {
   count: number
+  action: BulkAction
   isDryRun: boolean
   onConfirm: () => void
   onCancel: () => void
 }
 
-export default function ConfirmModal({ count, isDryRun, onConfirm, onCancel }: ConfirmModalProps) {
+export default function ConfirmModal({ count, action, isDryRun, onConfirm, onCancel }: ConfirmModalProps) {
   const [confirmText, setConfirmText] = useState('')
 
-  const isValid = isDryRun || confirmText === 'DELETE'
+  const confirmWord = action === 'delete' ? 'DELETE' : 'ARCHIVE'
+  const showConfirmInput = action === 'delete' ? !isDryRun : true
+  const isValid = showConfirmInput ? confirmText === confirmWord : true
+  const title = action === 'delete'
+    ? isDryRun
+      ? 'Preview Deletion'
+      : 'Confirm Deletion'
+    : 'Confirm Archiving'
+  const description = action === 'delete'
+    ? isDryRun
+      ? `Preview deletion of ${count} repositor${count !== 1 ? 'ies' : 'y'}`
+      : `You are about to delete ${count} repositor${count !== 1 ? 'ies' : 'y'}`
+    : `You are about to archive ${count} repositor${count !== 1 ? 'ies' : 'y'}`
+  const warningText = action === 'delete'
+    ? 'This action cannot be undone. All selected repositories will be permanently deleted.'
+    : 'Repositories can be unarchived later, but they will become read-only until you do so.'
+  const confirmButtonText = action === 'delete' ? (isDryRun ? 'Preview' : 'Delete') : 'Archive'
+  const accentBorder = action === 'delete' && !isDryRun ? 'border-red-500/30' : 'border-orange-500/30'
 
   return (
     <motion.div
@@ -34,10 +53,10 @@ export default function ConfirmModal({ count, isDryRun, onConfirm, onCancel }: C
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ delay: 0.1, type: 'spring' }}
-              className="inline-block p-4 bg-gradient-to-br from-red-600/20 to-orange-600/20 rounded-2xl mb-4 border border-red-500/30"
+              className={`inline-block p-4 bg-gradient-to-br from-orange-600/20 to-red-600/20 rounded-2xl mb-4 border ${accentBorder}`}
             >
               <svg
-                className="w-14 h-14 text-red-500"
+                className="w-14 h-14 text-orange-400"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -50,39 +69,31 @@ export default function ConfirmModal({ count, isDryRun, onConfirm, onCancel }: C
                 />
               </svg>
             </motion.div>
-            <h2 className="text-2xl font-bold text-white mb-2">
-              {isDryRun ? 'Preview Deletion' : 'Confirm Deletion'}
-            </h2>
-            <p className="text-zinc-400">
-              {isDryRun
-                ? `Preview deletion of ${count} repositor${count !== 1 ? 'ies' : 'y'}`
-                : `You are about to delete ${count} repositor${count !== 1 ? 'ies' : 'y'}`}
-            </p>
+            <h2 className="text-2xl font-bold text-white mb-2">{title}</h2>
+            <p className="text-zinc-400">{description}</p>
           </div>
 
-          {!isDryRun && (
+          {showConfirmInput && (
             <div className="mb-6">
               <label className="block text-sm font-medium text-zinc-300 mb-2">
-                Type <span className="font-mono font-bold text-red-400">DELETE</span> to confirm:
+                Type <span className="font-mono font-bold text-orange-400">{confirmWord}</span> to confirm:
               </label>
               <input
                 type="text"
                 value={confirmText}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConfirmText(e.target.value)}
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-red-500 transition-colors"
-                placeholder="DELETE"
+                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-orange-500 transition-colors"
+                placeholder={confirmWord}
                 autoFocus
               />
             </div>
           )}
 
-          {!isDryRun && (
-            <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
-              <p className="text-sm text-red-200">
-                <strong>Warning:</strong> This action cannot be undone. All selected repositories will be permanently deleted.
-              </p>
-            </div>
-          )}
+          <div className="mb-6 p-4 bg-orange-500/10 border border-orange-500/30 rounded-lg">
+            <p className="text-sm text-orange-200">
+              <strong>Warning:</strong> {warningText}
+            </p>
+          </div>
 
           <div className="flex gap-3">
             <button onClick={onCancel} className="flex-1 btn-secondary">
@@ -91,11 +102,11 @@ export default function ConfirmModal({ count, isDryRun, onConfirm, onCancel }: C
             <button
               onClick={onConfirm}
               disabled={!isValid}
-              className={`flex-1 btn-danger ${
+              className={`flex-1 ${action === 'delete' && !isDryRun ? 'btn-danger' : 'btn-primary'} ${
                 !isValid ? 'opacity-50 cursor-not-allowed' : ''
               }`}
             >
-              {isDryRun ? 'Preview' : 'Delete'}
+              {confirmButtonText}
             </button>
           </div>
         </SpotlightCard>
