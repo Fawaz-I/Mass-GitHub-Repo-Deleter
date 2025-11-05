@@ -1,0 +1,21 @@
+{
+  "description": "Configuration for Mass GitHub Repo Deleter - Cloudflare Workers project",
+  "startupProcesses": [],
+  "_comment": "Run ./setup.sh first to create logs directory, then uncomment the dev process below",
+  "_startupProcesses_disabled": [
+    {
+      "name": "dev",
+      "command": "npm run dev",
+      "stdoutFile": "logs/dev.log"
+    }
+  ],
+  "fileChangeHooks": [
+    {
+      "name": "typecheck",
+      "command": "npm run typecheck",
+      "filePattern": "**/*.{ts,tsx}",
+      "enabled": true
+    }
+  ],
+  "maxAgentSteps": 25
+}

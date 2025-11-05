@@ -1,0 +1,16 @@
+name = "mass-github-repo-deleter"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[site]
+bucket = "./dist"
+
+[vars]
+ENVIRONMENT = "production"
+
+# Secrets (set via: wrangler secret put <KEY>)
+# GITHUB_CLIENT_ID
+# GITHUB_CLIENT_SECRET
+# JWT_SECRET
+# REDIRECT_URI
