@@ -32,6 +32,6 @@ app.route('/api', apiRoutes as any)
 app.get('/assets/*', serveStatic({ root: './' }))
 
 // Serve index.html for all other routes (SPA)
-app.get('*', serveStatic({ path: './index.html' }))
+app.get('*', serveStatic({ path: 'index.html' }))
 
 export default app
