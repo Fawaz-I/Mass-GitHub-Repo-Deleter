@@ -12,6 +12,7 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ jwt, onLogout }: DashboardProps) {
+  const isDev = import.meta.env.DEV
   const [repos, setRepos] = useState<Repository[]>([])
   const [filteredRepos, setFilteredRepos] = useState<Repository[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -250,7 +251,7 @@ export default function Dashboard({ jwt, onLogout }: DashboardProps) {
                     <option value="archive">Archive repositories</option>
                   </select>
 
-                  {actionType === 'delete' && (
+                  {actionType === 'delete' && isDev && (
                     <label className="flex items-center gap-2 text-sm text-zinc-300 whitespace-nowrap">
                       <input
                         type="checkbox"
