@@ -3,6 +3,7 @@ export interface Env {
   GITHUB_CLIENT_SECRET: string
   JWT_SECRET: string
   REDIRECT_URI: string
+  RATE_LIMIT_KV?: KVNamespace
   [key: string]: unknown
 }
 

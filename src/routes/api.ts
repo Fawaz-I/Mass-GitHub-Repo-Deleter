@@ -10,11 +10,13 @@ import {
   JWT_AUDIENCE,
   MAX_REPO_BATCH,
   MAX_REQUEST_BODY_SIZE,
+  MAX_REPO_NAME_LENGTH,
   createRateLimiter,
   ensureStrongSecret,
+  sanitizeError,
 } from '../utils/security'
 
-type AppEnv = { Bindings: Env; Variables: { githubToken: string } }
+type AppEnv = { Bindings: Env; Variables: { githubToken: string; githubUser: string; requestId: string } }
 
 export const apiRoutes = new Hono<AppEnv>()
 
@@ -74,6 +76,10 @@ const validateRepoList = (value: unknown) => {
 
     const trimmed = repo.trim()
 
+    if (trimmed.length > MAX_REPO_NAME_LENGTH) {
+      throw new RequestBodyError('Repository name too long')
+    }
+
     if (!REPO_NAME_PATTERN.test(trimmed)) {
       throw new RequestBodyError('Invalid repository format. Expected owner/repo')
     }
@@ -115,11 +121,17 @@ const verifyJWT = async (c: Context<AppEnv>, next: Next) => {
       return c.json({ error: 'Invalid authentication token' }, 401)
     }
 
+    if (!payload.githubUser || typeof payload.githubUser !== 'string') {
+      return c.json({ error: 'Invalid authentication token' }, 401)
+    }
+
     c.set('githubToken', payload.token as string)
+    c.set('githubUser', payload.githubUser as string)
     await next()
   } catch (error) {
-    console.error('JWT verification error:', error)
-    return c.json({ error: 'Invalid or expired token' }, 401)
+    const isDev = c.env?.ENVIRONMENT !== 'production'
+    const errorMessage = sanitizeError(error, isDev)
+    return c.json({ error: errorMessage }, 401)
   }
 }
 
@@ -164,8 +176,9 @@ apiRoutes.get('/repos', verifyJWT, async (c) => {
 
     return c.json(repos)
   } catch (error) {
-    console.error('Fetch repos error:', error)
-    return c.json({ error: 'Failed to fetch repositories' }, 500)
+    const isDev = c.env?.ENVIRONMENT !== 'production'
+    const errorMessage = sanitizeError(error, isDev)
+    return c.json({ error: errorMessage }, 500)
   }
 })
 
@@ -187,12 +200,36 @@ apiRoutes.post('/delete', verifyJWT, async (c) => {
     const dryRun = body.dryRun === true
 
     const octokit = new Octokit({ auth: token })
+    const githubUser = c.get('githubUser')
     const results: ActionResult[] = []
 
     // Process deletions sequentially to avoid rate limits
     for (const repoFullName of repos) {
       try {
         const [owner, repo] = repoFullName.split('/')
+
+        // Verify repository ownership before deletion
+        try {
+          const { data: repoData } = await octokit.repos.get({ owner, repo })
+          
+          // Ensure the authenticated user owns the repository
+          if (repoData.owner.login !== githubUser) {
+            results.push({
+              repo: repoFullName,
+              success: false,
+              error: 'Repository not found or access denied',
+            })
+            continue
+          }
+        } catch (error: any) {
+          // If we can't fetch the repo, it doesn't exist or user doesn't have access
+          results.push({
+            repo: repoFullName,
+            success: false,
+            error: 'Repository not found or access denied',
+          })
+          continue
+        }
 
         if (!dryRun) {
           await octokit.repos.delete({ owner, repo })
@@ -221,12 +258,13 @@ apiRoutes.post('/delete', verifyJWT, async (c) => {
       },
     })
   } catch (error) {
-    console.error('Delete repos error:', error)
     if (error instanceof RequestBodyError) {
       c.status(error.status as StatusCode)
       return c.json({ error: error.message })
     }
-    return c.json({ error: 'Failed to delete repositories' }, 500)
+    const isDev = c.env?.ENVIRONMENT !== 'production'
+    const errorMessage = sanitizeError(error, isDev)
+    return c.json({ error: errorMessage }, 500)
   }
 })
 
@@ -238,11 +276,35 @@ apiRoutes.post('/archive', verifyJWT, async (c) => {
     const repos = validateRepoList(body.repos)
 
     const octokit = new Octokit({ auth: token })
+    const githubUser = c.get('githubUser')
     const results: ActionResult[] = []
 
     for (const repoFullName of repos) {
       try {
         const [owner, repo] = repoFullName.split('/')
+
+        // Verify repository ownership before archiving
+        try {
+          const { data: repoData } = await octokit.repos.get({ owner, repo })
+          
+          // Ensure the authenticated user owns the repository
+          if (repoData.owner.login !== githubUser) {
+            results.push({
+              repo: repoFullName,
+              success: false,
+              error: 'Repository not found or access denied',
+            })
+            continue
+          }
+        } catch (error: any) {
+          // If we can't fetch the repo, it doesn't exist or user doesn't have access
+          results.push({
+            repo: repoFullName,
+            success: false,
+            error: 'Repository not found or access denied',
+          })
+          continue
+        }
 
         await octokit.repos.update({ owner, repo, archived: true })
 
@@ -268,11 +330,12 @@ apiRoutes.post('/archive', verifyJWT, async (c) => {
       },
     })
   } catch (error) {
-    console.error('Archive repos error:', error)
     if (error instanceof RequestBodyError) {
       c.status(error.status as StatusCode)
       return c.json({ error: error.message })
     }
-    return c.json({ error: 'Failed to archive repositories' }, 500)
+    const isDev = c.env?.ENVIRONMENT !== 'production'
+    const errorMessage = sanitizeError(error, isDev)
+    return c.json({ error: errorMessage }, 500)
   }
 })

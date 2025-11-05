@@ -10,6 +10,11 @@ not_found_handling = "single-page-application"
 [vars]
 ENVIRONMENT = "production"
 
+# KV Namespace for rate limiting
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "22f8348ff948436d9822c07b99b239e6"
+
 # Secrets (set via: wrangler secret put <KEY>)
 # GITHUB_CLIENT_ID
 # GITHUB_CLIENT_SECRET

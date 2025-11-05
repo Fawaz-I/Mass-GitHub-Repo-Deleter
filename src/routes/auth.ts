@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { SignJWT } from 'jose'
+import { Octokit } from '@octokit/rest'
 import { parse, serialize } from 'hono/utils/cookie'
 import type { Env } from '../types'
 import {
@@ -9,6 +10,7 @@ import {
   STATE_COOKIE_NAME,
   createRateLimiter,
   ensureStrongSecret,
+  sanitizeError,
 } from '../utils/security'
 
 type AppEnv = { Bindings: Env }
@@ -66,7 +68,6 @@ authRoutes.get('/callback', async (c: Context<AppEnv>) => {
     }
 
     if (!state || !storedState || storedState !== state) {
-      console.error('OAuth state validation failed')
       const expiredStateCookie = clearCookie(STATE_COOKIE_NAME)
       c.header('Set-Cookie', expiredStateCookie)
       return c.json({ error: 'Invalid OAuth state parameter' }, 400)
@@ -92,13 +93,25 @@ authRoutes.get('/callback', async (c: Context<AppEnv>) => {
     const tokenData = await tokenResponse.json() as { access_token?: string; error?: string }
 
     if (!tokenData.access_token) {
-      console.error('GitHub OAuth error:', tokenData)
       return c.json({ error: 'Failed to obtain access token' }, 400)
     }
 
-    // Sign JWT with GitHub access token (10 min expiry)
+    // Fetch GitHub user info to store in JWT for authorization checks
+    let githubUser: string
+    try {
+      const octokit = new Octokit({ auth: tokenData.access_token })
+      const { data: user } = await octokit.users.getAuthenticated()
+      githubUser = user.login
+    } catch {
+      return c.json({ error: 'Failed to fetch user information' }, 400)
+    }
+
+    // Sign JWT with GitHub access token and user login (10 min expiry)
     const secret = new TextEncoder().encode(c.env!.JWT_SECRET)
-    const jwt = await new SignJWT({ token: tokenData.access_token })
+    const jwt = await new SignJWT({ 
+      token: tokenData.access_token,
+      githubUser 
+    })
       .setProtectedHeader({ alg: 'HS256' })
       .setExpirationTime('10m')
       .setIssuedAt()
@@ -120,8 +133,9 @@ authRoutes.get('/callback', async (c: Context<AppEnv>) => {
     // Redirect to frontend without exposing the token in the URL
     return c.redirect('/')
   } catch (error) {
-    console.error('Auth callback error:', error)
-    return c.json({ error: 'Authentication failed' }, 500)
+    const isDev = c.env?.ENVIRONMENT !== 'production'
+    const errorMessage = sanitizeError(error, isDev)
+    return c.json({ error: errorMessage }, 500)
   }
 })
 

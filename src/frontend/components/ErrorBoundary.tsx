@@ -20,18 +20,26 @@ export default class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('Error boundary caught:', error, errorInfo)
+    // Only log errors in development
+    if (import.meta.env.DEV) {
+      console.error('Error boundary caught:', error, errorInfo)
+    }
   }
 
   render() {
     if (this.state.hasError) {
+      const isDev = import.meta.env.DEV
+      const errorMessage = isDev 
+        ? (this.state.error?.message || 'An unexpected error occurred')
+        : 'An unexpected error occurred. Please refresh the page.'
+      
       return (
         <div className="min-h-screen flex items-center justify-center bg-gray-950">
           <div className="max-w-md w-full mx-4">
             <div className="bg-red-900/20 border border-red-500 rounded-lg p-6">
               <h2 className="text-xl font-bold text-red-400 mb-2">Something went wrong</h2>
               <p className="text-gray-300 mb-4">
-                {this.state.error?.message || 'An unexpected error occurred'}
+                {errorMessage}
               </p>
               <button
                 onClick={() => window.location.reload()}
