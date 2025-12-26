@@ -18,7 +18,7 @@
     "framer-motion": "^12.23.24",
     "hono": "^4.10.4",
     "jose": "^5.0.0",
-    "tailwind-merge": "^3.3.1"
+    "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240000.0",
